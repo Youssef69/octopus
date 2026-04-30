@@ -1,0 +1,2929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Octopus — Intermarket Mastery Tape Reader</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700;9..144,900&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #0d0d0c;
+    --bg-2: #161614;
+    --bg-3: #1f1f1c;
+    --ink: #f4ede1;
+    --ink-mute: #a09d92;
+    --ink-faint: #5a5853;
+    --accent: #d4a017;
+    --accent-2: #e8c25c;
+    --long: #4ec9a8;
+    --short: #e25b5b;
+    --neutral: #8a8a85;
+    --border: rgba(244, 237, 225, 0.08);
+    --border-2: rgba(244, 237, 225, 0.18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+
+  body {
+    background:
+      radial-gradient(ellipse at top right, rgba(212,160,23,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at bottom left, rgba(78,201,168,0.04) 0%, transparent 50%),
+      var(--bg);
+  }
+
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0.4;
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/><feColorMatrix values='0 0 0 0 0.96 0 0 0 0 0.93 0 0 0 0 0.88 0 0 0 0.04 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 2rem 2rem 4rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .brand h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: clamp(2.2rem, 5vw, 3.6rem);
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+    color: var(--ink);
+  }
+  .brand h1 em { font-style: italic; font-weight: 400; color: var(--accent); }
+  .brand .tag {
+    margin-top: 0.4rem;
+    color: var(--ink-mute);
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .key-zone {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-mute);
+  }
+  .key-input {
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    color: var(--ink);
+    padding: 0.45rem 0.7rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    width: 220px;
+    border-radius: 2px;
+  }
+  .key-input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+  .key-status { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); }
+  .key-status.ok { background: var(--long); box-shadow: 0 0 8px var(--long); }
+
+  .mode-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.8rem;
+    flex-wrap: wrap;
+  }
+  .mode-tab {
+    background: none;
+    border: none;
+    color: var(--ink-mute);
+    font-family: inherit;
+    font-size: 0.82rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.9rem 1.5rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .mode-tab:hover { color: var(--ink); }
+  .mode-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .mode-tab .glyph {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+  .mode-tab .badge {
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 0.62rem;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-left: 0.3rem;
+  }
+
+  .mode-section { display: none; }
+  .mode-section.active { display: block; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+  @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem;
+  }
+
+  .panel-title {
+    font-family: 'Fraunces', serif;
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    margin-bottom: 1rem;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    justify-content: space-between;
+  }
+  .panel-title-text { display: flex; align-items: center; gap: 0.6rem; }
+  .panel-title-text::before {
+    content: '';
+    width: 4px; height: 4px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+
+  .pill-row {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.9rem;
+  }
+  .pill {
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
+    color: var(--ink-mute);
+    padding: 0.35rem 0.75rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+  }
+  .pill:hover { color: var(--ink); border-color: var(--ink-mute); }
+  .pill.active {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    font-weight: 500;
+  }
+  .pill-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-mute);
+    margin-bottom: 0.4rem;
+    display: block;
+  }
+
+  .ctx-input, .text-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border-2);
+    color: var(--ink);
+    padding: 0.55rem 0.7rem;
+    font-family: inherit;
+    font-size: 0.82rem;
+    border-radius: 2px;
+    margin-top: 0.5rem;
+  }
+  .ctx-input:focus, .text-input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+
+  .drop-zone {
+    border: 1px dashed var(--border-2);
+    border-radius: 4px;
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--ink-mute);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 1rem;
+  }
+  .drop-zone:hover, .drop-zone.dragging {
+    border-color: var(--accent);
+    color: var(--ink);
+    background: var(--bg-3);
+  }
+  .drop-zone strong {
+    display: block;
+    color: var(--ink);
+    font-weight: 500;
+    margin-bottom: 0.3rem;
+    font-size: 0.92rem;
+    font-family: 'Fraunces', serif;
+  }
+  .drop-zone .hint {
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+    margin-top: 0.3rem;
+  }
+
+  /* Quieter variant — used when capture is the primary action */
+  .drop-zone.quiet {
+    padding: 0.8rem 1rem;
+    font-size: 0.74rem;
+    margin-bottom: 0.8rem;
+    opacity: 0.7;
+  }
+  .drop-zone.quiet:hover, .drop-zone.quiet.dragging {
+    opacity: 1;
+  }
+  .drop-zone.quiet strong {
+    display: inline;
+    font-size: 0.78rem;
+    margin: 0;
+  }
+  .drop-zone.quiet .hint {
+    display: inline;
+    margin-left: 0.4rem;
+  }
+
+  .or-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--ink-faint);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin: 0.4rem 0 0.6rem;
+  }
+  .or-divider::before, .or-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .thumbs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .thumb {
+    position: relative;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    aspect-ratio: 16/10;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .thumb-label {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.85));
+    color: var(--ink);
+    padding: 1.2rem 0.5rem 0.4rem;
+    font-size: 0.66rem;
+    letter-spacing: 0.04em;
+  }
+  .thumb .thumb-remove {
+    position: absolute;
+    top: 4px; right: 4px;
+    background: rgba(0,0,0,0.7);
+    color: var(--ink);
+    border: none;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+  }
+  .thumb .thumb-remove:hover { background: var(--short); }
+
+  /* OCTOPUS GRID */
+  .octo-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.7rem;
+    margin-bottom: 1.2rem;
+  }
+  @media (max-width: 700px) { .octo-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .octo-slot {
+    background: var(--bg);
+    border: 1px dashed var(--border-2);
+    border-radius: 3px;
+    aspect-ratio: 4/3;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0.5rem;
+  }
+  .octo-slot:hover { border-color: var(--accent); background: var(--bg-3); }
+  .octo-slot.dragging { border-color: var(--accent); background: var(--bg-3); }
+  .octo-slot.filled { border-style: solid; border-color: var(--border); }
+  .octo-slot .octo-symbol {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 1.4rem;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .octo-slot .octo-name {
+    font-size: 0.62rem;
+    color: var(--ink-mute);
+    margin-top: 0.2rem;
+    letter-spacing: 0.04em;
+  }
+  .octo-slot .octo-role {
+    font-size: 0.58rem;
+    color: var(--ink-faint);
+    font-style: italic;
+    margin-top: 0.15rem;
+    line-height: 1.2;
+  }
+  .octo-slot img {
+    position: absolute;
+    inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    z-index: 0;
+  }
+  .octo-slot.filled .octo-symbol,
+  .octo-slot.filled .octo-name,
+  .octo-slot.filled .octo-role { display: none; }
+  .octo-slot.filled::after {
+    content: attr(data-sym);
+    position: absolute;
+    top: 4px; left: 4px;
+    background: rgba(0,0,0,0.85);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 2px;
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 0.75rem;
+    z-index: 2;
+  }
+  .octo-slot .clear-btn {
+    position: absolute;
+    top: 3px; right: 3px;
+    background: rgba(0,0,0,0.8);
+    color: var(--ink);
+    border: none;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0;
+    z-index: 3;
+    display: none;
+  }
+  .octo-slot.filled .clear-btn { display: block; }
+  .octo-slot .clear-btn:hover { background: var(--short); }
+
+  .octo-counter {
+    text-align: center;
+    color: var(--ink-mute);
+    font-size: 0.75rem;
+    margin-bottom: 1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .octo-counter strong { color: var(--accent); }
+
+  .octo-bulk-drop {
+    border: 1px dashed var(--border-2);
+    border-radius: 4px;
+    padding: 1rem;
+    text-align: center;
+    color: var(--ink-mute);
+    font-size: 0.78rem;
+    cursor: pointer;
+    margin-bottom: 1rem;
+    transition: all 0.15s;
+  }
+  .octo-bulk-drop:hover, .octo-bulk-drop.dragging {
+    border-color: var(--accent);
+    color: var(--ink);
+    background: var(--bg-3);
+  }
+  .octo-bulk-drop.quiet {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.72rem;
+    margin-bottom: 0.8rem;
+    opacity: 0.7;
+  }
+  .octo-bulk-drop.quiet:hover, .octo-bulk-drop.quiet.dragging { opacity: 1; }
+  .octo-bulk-drop.quiet strong { font-size: 0.76rem; }
+
+  .analyze-btn {
+    width: 100%;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 1rem;
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    margin-top: 0.5rem;
+    transition: all 0.15s;
+  }
+  .analyze-btn:hover { background: var(--accent-2); }
+  .analyze-btn:active { transform: scale(0.99); }
+  .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn {
+    background: var(--bg-3);
+    color: var(--ink);
+    border: 1px solid var(--border-2);
+    padding: 0.5rem 0.9rem;
+    font-family: inherit;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: var(--bg-2); border-color: var(--ink-mute); }
+  .btn.btn-accent { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 500; }
+  .btn.btn-accent:hover { background: var(--accent-2); }
+  .btn.btn-danger { color: var(--short); border-color: rgba(226,91,91,0.3); }
+  .btn.btn-danger:hover { background: rgba(226,91,91,0.08); }
+  .btn.btn-long { color: var(--long); border-color: rgba(78,201,168,0.3); }
+  .btn.btn-long:hover { background: rgba(78,201,168,0.08); }
+
+  /* VERDICT */
+  .verdict-card {
+    background: var(--bg);
+    border: 1px solid var(--border-2);
+    border-radius: 4px;
+    padding: 1.7rem 1.4rem;
+    text-align: center;
+    margin-bottom: 1.2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .verdict-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--neutral);
+    transition: background 0.3s;
+  }
+  .verdict-card.long::before { background: var(--long); }
+  .verdict-card.short::before { background: var(--short); }
+  .verdict-card.pass::before { background: var(--neutral); }
+
+  .verdict-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink-mute);
+    margin-bottom: 0.5rem;
+  }
+  .verdict-call {
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: clamp(2.6rem, 7vw, 4.4rem);
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--neutral);
+    transition: color 0.3s;
+  }
+  .verdict-call.long { color: var(--long); }
+  .verdict-call.short { color: var(--short); }
+  .verdict-call.pass { color: var(--neutral); }
+
+  .verdict-conviction {
+    font-size: 0.78rem;
+    color: var(--ink-mute);
+    margin-top: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .verdict-conviction strong { color: var(--accent); font-weight: 500; }
+
+  .verdict-reason {
+    font-family: 'Fraunces', serif;
+    font-size: 1rem;
+    font-style: italic;
+    color: var(--ink);
+    margin-top: 1rem;
+    padding: 0.7rem 0.9rem;
+    background: var(--bg-3);
+    border-radius: 2px;
+    border-left: 2px solid var(--accent);
+    text-align: left;
+    line-height: 1.5;
+  }
+
+  .matrix { display: grid; grid-template-columns: 1fr; gap: 0.7rem; margin-top: 1rem; }
+  .matrix-level {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.7rem 0.9rem;
+    display: grid;
+    grid-template-columns: 30px 1fr 70px;
+    gap: 0.7rem;
+    align-items: center;
+  }
+  .level-num {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 700;
+    font-size: 1.4rem;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .level-body { font-size: 0.82rem; line-height: 1.45; }
+  .level-body .level-title {
+    font-family: 'Fraunces', serif;
+    color: var(--ink);
+    font-weight: 500;
+    font-size: 0.92rem;
+    margin-bottom: 0.15rem;
+  }
+  .level-body .level-detail { color: var(--ink-mute); font-size: 0.78rem; }
+  .level-status {
+    text-align: center;
+    font-size: 0.65rem;
+    padding: 0.35rem 0.4rem;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 500;
+  }
+  .level-status.pass { background: rgba(78,201,168,0.12); color: var(--long); }
+  .level-status.fail { background: rgba(226,91,91,0.12); color: var(--short); }
+  .level-status.warn { background: rgba(212,160,23,0.12); color: var(--accent); }
+
+  .details { margin-top: 1rem; }
+  .detail-row {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px dashed var(--border);
+    font-size: 0.82rem;
+    align-items: baseline;
+  }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-row .key {
+    color: var(--ink-mute);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .detail-row .val {
+    color: var(--ink);
+    font-family: 'Fraunces', serif;
+    font-size: 0.92rem;
+  }
+
+  .archetype-match {
+    margin-top: 1rem;
+    padding: 0.9rem 1rem;
+    background: var(--bg-3);
+    border-left: 2px solid var(--long);
+    border-radius: 2px;
+    font-size: 0.85rem;
+  }
+  .archetype-match.no-match { border-left-color: var(--neutral); color: var(--ink-mute); }
+  .archetype-match .archetype-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 0.3rem;
+  }
+  .archetype-match strong {
+    color: var(--ink);
+    font-family: 'Fraunces', serif;
+    font-size: 1rem;
+    font-weight: 500;
+  }
+
+  .empty {
+    color: var(--ink-faint);
+    font-size: 0.88rem;
+    text-align: center;
+    padding: 4rem 1rem;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+  }
+
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--ink-faint);
+    font-size: 0.72rem;
+    text-align: center;
+    line-height: 1.8;
+  }
+  .footer strong { color: var(--ink-mute); }
+
+  .pulse {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 0.9s infinite ease-in-out;
+    margin-right: 6px;
+  }
+  @keyframes pulse {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1.2); }
+  }
+
+  .err-box {
+    background: rgba(226,91,91,0.08);
+    border: 1px solid rgba(226,91,91,0.3);
+    color: var(--short);
+    padding: 0.7rem;
+    border-radius: 2px;
+    font-size: 0.78rem;
+    margin-top: 1rem;
+  }
+
+  .reg-pill {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 2px;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .reg-pill.on { background: rgba(78,201,168,0.12); color: var(--long); }
+  .reg-pill.off { background: rgba(226,91,91,0.12); color: var(--short); }
+  .reg-pill.mixed { background: rgba(138,138,133,0.15); color: var(--ink-mute); }
+
+  /* SAVE/JOURNAL ACTION BAR */
+  .save-bar {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--border);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .save-bar .saved-indicator {
+    color: var(--long);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-left: auto;
+    display: none;
+  }
+  .save-bar .saved-indicator.visible { display: inline; }
+
+  /* JOURNAL */
+  .journal-toolbar {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.7rem;
+    margin-bottom: 1.5rem;
+  }
+  .stat-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    padding: 0.9rem 1rem;
+    border-radius: 3px;
+  }
+  .stat-card .stat-label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-mute);
+    margin-bottom: 0.3rem;
+  }
+  .stat-card .stat-val {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 1.4rem;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .stat-card .stat-val.long { color: var(--long); }
+  .stat-card .stat-val.short { color: var(--short); }
+  .stat-card .stat-val.accent { color: var(--accent); }
+  .stat-card .stat-sub {
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+    margin-top: 0.3rem;
+  }
+
+  .journal-list { display: grid; gap: 0.6rem; }
+  .journal-entry {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1rem;
+    display: grid;
+    grid-template-columns: 90px 1fr auto;
+    gap: 1rem;
+    align-items: start;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .journal-entry:hover { border-color: var(--ink-mute); }
+  .journal-entry.expanded { border-color: var(--accent); }
+  .je-meta { font-size: 0.7rem; color: var(--ink-mute); }
+  .je-meta .je-date {
+    font-family: 'Fraunces', serif;
+    color: var(--ink);
+    font-size: 0.92rem;
+    margin-bottom: 0.2rem;
+    font-weight: 500;
+  }
+  .je-meta .je-time { font-size: 0.7rem; color: var(--ink-faint); }
+  .je-meta .je-mode {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
+    margin-top: 0.2rem;
+  }
+
+  .je-body { font-size: 0.85rem; }
+  .je-body .je-symbol {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 1rem;
+    margin-right: 0.5rem;
+  }
+  .je-body .je-verdict {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+  .je-body .je-verdict.long { color: var(--long); }
+  .je-body .je-verdict.short { color: var(--short); }
+  .je-body .je-verdict.pass { color: var(--neutral); }
+  .je-body .je-reason {
+    font-style: italic;
+    color: var(--ink-mute);
+    margin-top: 0.4rem;
+    font-family: 'Fraunces', serif;
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+
+  .je-outcome {
+    text-align: right;
+    font-size: 0.75rem;
+  }
+  .outcome-badge {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    border-radius: 2px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .outcome-badge.win { background: rgba(78,201,168,0.15); color: var(--long); }
+  .outcome-badge.loss { background: rgba(226,91,91,0.15); color: var(--short); }
+  .outcome-badge.skipped { background: rgba(138,138,133,0.15); color: var(--ink-mute); }
+  .outcome-badge.open { background: rgba(212,160,23,0.15); color: var(--accent); }
+
+  .je-detail {
+    grid-column: 1 / -1;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--border);
+  }
+
+  .je-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.4rem;
+    margin-top: 0.8rem;
+  }
+  .je-images img {
+    width: 100%;
+    aspect-ratio: 16/10;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+  .outcome-buttons {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .attach-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.7rem;
+    margin-top: 0.4rem;
+    margin-bottom: 0.4rem;
+    border-radius: 2px;
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .attach-status.empty {
+    background: var(--bg-3);
+    color: var(--ink-faint);
+    border: 1px dashed var(--border-2);
+  }
+  .attach-status.ready {
+    background: rgba(78,201,168,0.08);
+    color: var(--long);
+    border: 1px solid rgba(78,201,168,0.3);
+  }
+  .attach-status.ready::before {
+    content: '\u2713';
+    font-weight: 700;
+  }
+  .attach-status.warn {
+    background: rgba(212,160,23,0.08);
+    color: var(--accent);
+    border: 1px solid rgba(212,160,23,0.3);
+  }
+
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 1rem;
+  }
+  .modal.visible { display: flex; }
+  .modal img {
+    max-width: 95vw;
+    max-height: 95vh;
+    object-fit: contain;
+    border: 1px solid var(--border-2);
+  }
+
+  /* CAPTURE BUTTON */
+  .capture-btn {
+    width: 100%;
+    background: var(--bg-3);
+    color: var(--ink);
+    border: 1px solid var(--accent);
+    padding: 0.7rem;
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 0.9rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    margin-bottom: 1rem;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  .capture-btn:hover { background: var(--accent); color: var(--bg); }
+  .capture-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .capture-btn .glyph {
+    font-size: 1.1rem;
+  }
+  .capture-btn.active {
+    background: var(--accent);
+    color: var(--bg);
+    animation: pulseSubtle 1.2s infinite;
+  }
+  @keyframes pulseSubtle {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(212,160,23,0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(212,160,23,0); }
+  }
+
+  /* CAPTURE OVERLAY (full-screen crop UI) */
+  .capture-overlay {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 200;
+    display: none;
+    flex-direction: column;
+  }
+  .capture-overlay.visible { display: flex; }
+
+  .capture-bar {
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border-2);
+    padding: 0.7rem 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .capture-bar .capture-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 1rem;
+    letter-spacing: 0.02em;
+  }
+  .capture-bar .capture-instr {
+    color: var(--ink-mute);
+    font-size: 0.78rem;
+    flex: 1;
+    min-width: 200px;
+  }
+  .capture-bar .capture-instr strong {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .capture-bar .capture-status {
+    font-size: 0.72rem;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .capture-bar .capture-target {
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
+    color: var(--ink);
+    padding: 0.35rem 0.7rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    border-radius: 2px;
+  }
+
+  .capture-canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #050505;
+    min-height: 200px;
+  }
+  .capture-canvas-wrap canvas {
+    max-width: 100%;
+    max-height: 100%;
+    cursor: crosshair;
+    display: block;
+    background: #1a1a1a;
+  }
+  .capture-debug {
+    position: absolute;
+    top: 8px; left: 8px;
+    background: rgba(0,0,0,0.85);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 6px 10px;
+    border-radius: 2px;
+    border: 1px solid var(--border-2);
+    pointer-events: none;
+    z-index: 10;
+    white-space: pre;
+    max-width: 350px;
+  }
+  .capture-rect {
+    position: absolute;
+    border: 2px dashed var(--accent);
+    background: rgba(212,160,23,0.12);
+    pointer-events: none;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.4);
+  }
+
+  .capture-recent {
+    background: var(--bg-2);
+    border-top: 1px solid var(--border-2);
+    padding: 0.6rem 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    overflow-x: auto;
+    min-height: 64px;
+  }
+  .capture-recent-label {
+    color: var(--ink-mute);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-right: 0.5rem;
+    white-space: nowrap;
+  }
+  .capture-recent .recent-thumb {
+    height: 48px;
+    width: auto;
+    border: 1px solid var(--border-2);
+    border-radius: 2px;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .capture-recent .recent-thumb img {
+    height: 100%;
+    width: auto;
+    display: block;
+  }
+  .capture-recent .recent-thumb .recent-tag {
+    position: absolute;
+    top: 2px; left: 2px;
+    background: rgba(0,0,0,0.85);
+    color: var(--accent);
+    padding: 0 4px;
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 0.65rem;
+    border-radius: 2px;
+  }
+
+  .text-input.notes {
+    min-height: 60px;
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .pl-input {
+    width: 90px;
+    background: var(--bg);
+    border: 1px solid var(--border-2);
+    color: var(--ink);
+    padding: 0.4rem 0.5rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    border-radius: 2px;
+  }
+  .pl-input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+
+  .hidden { display: none !important; }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-2); }
+  ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<div class="container">
+  <header>
+    <div class="brand">
+      <h1>The <em>Octopus</em></h1>
+      <div class="tag">Belkhayate intermarket method &middot; with journal</div>
+    </div>
+    <div class="key-zone">
+      <span class="key-status" id="keyStatus" title="API key not set"></span>
+      <span>Anthropic key</span>
+      <input type="password" class="key-input" id="apiKey" placeholder="sk-ant-..." autocomplete="off" />
+    </div>
+  </header>
+
+  <div class="mode-tabs">
+    <button class="mode-tab active" data-mode="single"><span class="glyph">i</span> Single Chart</button>
+    <button class="mode-tab" data-mode="octopus"><span class="glyph">8</span> Octopus Scan</button>
+    <button class="mode-tab" data-mode="journal"><span class="glyph">J</span> Journal <span class="badge" id="journalBadge">0</span></button>
+  </div>
+
+  <!-- ============ SINGLE-CHART ============ -->
+  <div class="mode-section active" id="mode-single">
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-title"><span class="panel-title-text">Setup</span></div>
+
+        <span class="pill-label">Target market (the laggard)</span>
+        <div class="pill-row" id="instrumentPills">
+          <button class="pill active" data-sym="ES">ES</button>
+          <button class="pill" data-sym="NQ">NQ</button>
+          <button class="pill" data-sym="GC">GC</button>
+          <button class="pill" data-sym="CL">CL</button>
+          <button class="pill" data-sym="HG">HG</button>
+          <button class="pill" data-sym="ZN">ZN</button>
+          <button class="pill" data-sym="JPY">JPY</button>
+          <button class="pill" data-sym="DX">DX</button>
+          <button class="pill" data-sym="BTC">BTC</button>
+          <button class="pill" data-sym="OTHER">Other</button>
+        </div>
+
+        <span class="pill-label" style="margin-top:0.6rem;">Macro context</span>
+        <div class="pill-row" id="regimePills">
+          <button class="pill" data-reg="risk_on">Risk ON</button>
+          <button class="pill" data-reg="risk_off">Risk OFF</button>
+          <button class="pill active" data-reg="unknown">Let AI decide</button>
+        </div>
+
+        <input type="text" class="ctx-input" id="ctxInput" placeholder="Optional: timeframe, what dollar/bonds/yen are doing, who you think is the leader..." />
+
+        <div style="margin-top:1rem;">
+          <button class="capture-btn" id="captureBtnSingle">
+            <span class="glyph">&#9974;</span> Capture from screen
+          </button>
+
+          <div class="or-divider">or</div>
+
+          <div class="drop-zone quiet" id="dropZoneSingle">
+            <strong>Drop / paste / browse a file</strong>
+            <span class="hint">if you have a saved screenshot</span>
+          </div>
+          <input type="file" id="fileInputSingle" accept="image/*" multiple style="display:none" />
+
+          <div class="thumbs" id="thumbsSingle"></div>
+        </div>
+
+        <div class="attach-status empty" id="attachStatusSingle">No charts attached yet</div>
+        <button class="analyze-btn" id="analyzeBtnSingle">Run the 3-Level Matrix</button>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title"><span class="panel-title-text">Verdict</span></div>
+
+        <div id="emptyStateSingle" class="empty">
+          Drop a NinjaTrader 15-min screenshot of the laggard. The AI runs the 3-level Belkhayate matrix &mdash; macro, pivot zone, energy/direction &mdash; and gives you a clean LONG / SHORT / PASS.
+        </div>
+
+        <div id="resultsBlockSingle" class="hidden">
+          <div class="verdict-card" id="verdictCardSingle">
+            <div class="verdict-label">Bias</div>
+            <div class="verdict-call" id="verdictCallSingle">&mdash;</div>
+            <div class="verdict-conviction" id="verdictConvictionSingle"></div>
+            <div class="verdict-reason hidden" id="verdictReasonSingle"></div>
+          </div>
+
+          <div class="matrix" id="matrixSingle"></div>
+
+          <div class="archetype-match hidden" id="archetypeSingle"></div>
+
+          <div class="details" id="detailsSingle"></div>
+
+          <div class="save-bar">
+            <button class="btn btn-accent" id="saveBtnSingle">Save to Journal</button>
+            <button class="btn" id="discardBtnSingle">Discard</button>
+            <span class="saved-indicator" id="savedIndicatorSingle">&#10003; Saved</span>
+          </div>
+
+          <div id="errBoxSingle" class="err-box hidden"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ============ OCTOPUS ============ -->
+  <div class="mode-section" id="mode-octopus">
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-title"><span class="panel-title-text">The Eight Markets</span></div>
+
+        <div style="color:var(--ink-mute); font-size:0.8rem; margin-bottom:1rem; line-height:1.55;">
+          Capture all 8 charts in one screen-share session, or drop saved files. Answers the three morning questions: <em>What is the dollar doing? Risk-on or risk-off? Who's lagging?</em>
+        </div>
+
+        <button class="capture-btn" id="captureBtnOcto">
+          <span class="glyph">&#9974;</span> Capture from screen &mdash; sequential
+        </button>
+
+        <div class="or-divider">or</div>
+
+        <div class="octo-bulk-drop quiet" id="octoBulkDrop">
+          <strong style="color:var(--ink);">Bulk drop saved files</strong> &middot; AI auto-assigns from filename
+        </div>
+        <input type="file" id="octoBulkInput" accept="image/*" multiple style="display:none" />
+
+        <div class="octo-grid" id="octoGrid"></div>
+        <input type="file" id="octoSlotInput" accept="image/*" style="display:none" />
+
+        <div class="octo-counter">
+          <strong id="octoCount">0</strong> / 8 charts loaded &middot; minimum 3 to run scan
+        </div>
+
+        <input type="text" class="ctx-input" id="octoCtxInput" placeholder="Optional context: time of day, recent news..." />
+
+        <div class="attach-status empty" id="attachStatusOcto">No charts attached yet</div>
+        <button class="analyze-btn" id="analyzeBtnOcto">Run Octopus Scan</button>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title"><span class="panel-title-text">Morning Read</span></div>
+
+        <div id="emptyStateOcto" class="empty">
+          Drop charts of the 8 octopus markets. The AI answers: <em>What is the dollar doing? Risk-on or risk-off? Who's the leader? Who's lagging?</em> &mdash; and tells you which laggard is the best trade today.
+        </div>
+
+        <div id="resultsBlockOcto" class="hidden">
+          <div class="verdict-card" id="verdictCardOcto">
+            <div class="verdict-label">Today's regime</div>
+            <div class="verdict-call" id="verdictCallOcto" style="font-size: clamp(1.8rem, 4vw, 2.6rem);">&mdash;</div>
+            <div class="verdict-conviction" id="verdictConvictionOcto"></div>
+          </div>
+
+          <div class="details" id="detailsOcto"></div>
+
+          <div class="save-bar">
+            <button class="btn btn-accent" id="saveBtnOcto">Save to Journal</button>
+            <button class="btn" id="discardBtnOcto">Discard</button>
+            <span class="saved-indicator" id="savedIndicatorOcto">&#10003; Saved</span>
+          </div>
+
+          <div id="errBoxOcto" class="err-box hidden"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ============ JOURNAL ============ -->
+  <div class="mode-section" id="mode-journal">
+    <div class="journal-toolbar">
+      <div class="pill-row" id="journalFilters" style="margin-bottom:0;">
+        <button class="pill active" data-filter="all">All</button>
+        <button class="pill" data-filter="single">Single chart</button>
+        <button class="pill" data-filter="octopus">Octopus</button>
+        <button class="pill" data-filter="open">Open / no outcome</button>
+        <button class="pill" data-filter="win">Wins</button>
+        <button class="pill" data-filter="loss">Losses</button>
+        <button class="pill" data-filter="skipped">Skipped</button>
+      </div>
+      <div style="margin-left:auto; display:flex; gap:0.4rem; flex-wrap:wrap;">
+        <button class="btn" id="exportJsonBtn">Export JSON</button>
+        <button class="btn" id="exportCsvBtn">Export CSV</button>
+        <button class="btn" id="importBtn">Import</button>
+        <input type="file" id="importInput" accept="application/json,.json" style="display:none" />
+        <button class="btn btn-danger" id="clearAllBtn">Clear All</button>
+      </div>
+    </div>
+
+    <div class="stat-grid" id="statGrid"></div>
+
+    <div id="journalEmpty" class="empty">
+      No entries yet. Run a matrix or octopus scan and click <em>Save to Journal</em>.
+    </div>
+
+    <div class="journal-list" id="journalList"></div>
+  </div>
+
+  <div class="footer">
+    <strong>Static site &middot; runs in your browser &middot; key + journal stay in localStorage.</strong><br>
+    Implements the Belkhayate intermarket method (octopus + 3-level matrix + 15 archetypes). AI describes setups; it does not predict the future. Risk 1% per trade. Maximum.
+  </div>
+</div>
+
+<!-- Screen capture overlay -->
+<div class="capture-overlay" id="captureOverlay">
+  <div class="capture-bar">
+    <div class="capture-title">Screen capture</div>
+    <div class="capture-instr"><strong>Drag a rectangle</strong> over a chart to capture it. Hit <strong>Esc</strong> or click <strong>Done</strong> to finish.</div>
+    <div class="capture-status" id="captureStatus">&mdash;</div>
+    <select class="capture-target" id="captureTarget" title="Where the next capture will be placed"></select>
+    <button class="btn btn-accent" id="captureDoneBtn">Done</button>
+  </div>
+  <div class="capture-canvas-wrap" id="captureCanvasWrap">
+    <canvas id="captureCanvas"></canvas>
+    <div class="capture-rect" id="captureRect" style="display:none;"></div>
+    <div class="capture-debug" id="captureDebug"></div>
+  </div>
+  <div class="capture-recent" id="captureRecent">
+    <span class="capture-recent-label">Captured this session:</span>
+  </div>
+</div>
+
+<!-- Image lightbox -->
+<div class="modal" id="lightbox">
+  <img id="lightboxImg" src="" alt="" />
+</div>
+
+<script>
+// ====================================================================
+// API KEY
+// ====================================================================
+const keyInput = document.getElementById('apiKey');
+const keyStatus = document.getElementById('keyStatus');
+
+keyInput.value = localStorage.getItem('anthropic_key') || '';
+updateKeyStatus();
+keyInput.addEventListener('input', () => {
+  localStorage.setItem('anthropic_key', keyInput.value.trim());
+  updateKeyStatus();
+});
+function updateKeyStatus() {
+  const k = keyInput.value.trim();
+  if (k.startsWith('sk-ant-') && k.length > 20) {
+    keyStatus.classList.add('ok');
+    keyStatus.title = 'API key set';
+  } else {
+    keyStatus.classList.remove('ok');
+    keyStatus.title = 'API key not set';
+  }
+}
+
+function updateAttachStatus() {
+  // Single
+  const singleEl = document.getElementById('attachStatusSingle');
+  if (singleEl) {
+    const n = imagesSingle.length;
+    if (n === 0) {
+      singleEl.className = 'attach-status empty';
+      singleEl.textContent = 'No charts attached yet';
+    } else {
+      singleEl.className = 'attach-status ready';
+      singleEl.textContent = n + ' chart' + (n === 1 ? '' : 's') + ' ready to analyze';
+    }
+  }
+  // Octopus
+  const octoEl = document.getElementById('attachStatusOcto');
+  if (octoEl) {
+    const n = Object.keys(octoSlots).length;
+    if (n === 0) {
+      octoEl.className = 'attach-status empty';
+      octoEl.textContent = 'No charts attached yet';
+    } else if (n < 3) {
+      octoEl.className = 'attach-status warn';
+      octoEl.textContent = n + ' / 8 attached \u00b7 need at least 3 to run';
+    } else {
+      octoEl.className = 'attach-status ready';
+      octoEl.textContent = n + ' / 8 charts ready to scan';
+    }
+  }
+}
+
+// ====================================================================
+// JOURNAL STORAGE
+// ====================================================================
+const JOURNAL_KEY = 'octopus_journal_v1';
+
+function loadJournal() {
+  try {
+    const raw = localStorage.getItem(JOURNAL_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error('Journal load failed:', e);
+    return [];
+  }
+}
+
+function saveJournal(entries) {
+  try {
+    localStorage.setItem(JOURNAL_KEY, JSON.stringify(entries));
+    updateJournalBadge();
+    return true;
+  } catch (e) {
+    if (e.name === 'QuotaExceededError' || /quota/i.test(e.message)) {
+      alert('Browser storage is full. Export your journal as JSON and clear old entries.');
+    } else {
+      alert('Save failed: ' + e.message);
+    }
+    return false;
+  }
+}
+
+function updateJournalBadge() {
+  const entries = loadJournal();
+  document.getElementById('journalBadge').textContent = entries.length;
+}
+
+function newId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+// Image compression to keep localStorage usage reasonable
+function compressImage(dataUrl, maxDim = 800, quality = 0.7) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        const scale = maxDim / Math.max(w, h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+// ====================================================================
+// MODE TABS
+// ====================================================================
+document.querySelectorAll('.mode-tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.mode-tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.mode-section').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('mode-' + t.dataset.mode).classList.add('active');
+    if (t.dataset.mode === 'journal') renderJournal();
+  });
+});
+
+// ====================================================================
+// THE 8 MARKETS + 15 ARCHETYPES
+// ====================================================================
+const OCTOPUS = [
+  { sym: 'DX',  name: 'US Dollar',     role: 'Sun of system',     desc: 'Center of gravity. The first question every morning.' },
+  { sym: 'ZN',  name: '10Y T-Notes',   role: 'Conductor',         desc: 'Bond rally = risk-off. Selling = risk-on.' },
+  { sym: 'JPY', name: 'Japanese Yen',  role: 'Detonator',         desc: 'Carry trade. Yen rally = leverage unwind.' },
+  { sym: 'GC',  name: 'Gold',          role: 'Stress detector',   desc: 'Monetary fear gauge.' },
+  { sym: 'CL',  name: 'Crude Oil',     role: 'Inflation engine',  desc: 'News-driven, geopolitical.' },
+  { sym: 'HG',  name: 'Copper',        role: 'Doctor Copper',     desc: 'Real-economy thermometer.' },
+  { sym: 'ES',  name: 'S&P 500',       role: 'Liquidity mirror',  desc: 'Reflects everything else with a lag.' },
+  { sym: 'BTC', name: 'Bitcoin',       role: 'Liquidity sensor',  desc: 'Trades 24/7, often leads stocks.' }
+];
+
+const ARCHETYPES = [
+  { id: 1,  name: 'The Classic Risk-Off Lag',          market: 'ES',  bias: 'SHORT', rr: '1:3.0', prob: 78, key: 'Yen + bonds rally hard, ES still trading like nothing happened. 4-8h window.' },
+  { id: 2,  name: 'Bounce on DO Pivot in Risk-On',     market: 'BTC', bias: 'LONG',  rr: '1:3.9', prob: 74, key: 'BTC pulls back to extreme support DO with bullish energy divergence.' },
+  { id: 3,  name: 'Gold Leads the Dance',              market: 'GC',  bias: 'LONG',  rr: '1:3.8', prob: 82, key: 'Gold leading other safe-havens; buy at MI, target SOL/LA.' },
+  { id: 4,  name: 'The Copper Breakout',               market: 'HG',  bias: 'SHORT', rr: '1:4.3', prob: 76, key: 'HG breaks FA down, wait for retest from below before entering.' },
+  { id: 5,  name: 'Crude Oil Overheating',             market: 'CL',  bias: 'SHORT', rr: '1:3.5', prob: 80, key: 'CL spiked 6% in 2 sessions, bearish energy divergence appears.' },
+  { id: 6,  name: 'The Yen Carry-Trade Gap',           market: 'JPY', bias: 'SHORT', rr: '1:3.3', prob: 85, key: 'USDJPY: Direction flips green to red with clean first dot.' },
+  { id: 7,  name: 'Bonds vs Stocks Divergence',        market: 'ES',  bias: 'SHORT', rr: '1:3.0', prob: 79, key: 'Bonds rallying (risk-off) while ES ignores the signal.' },
+  { id: 8,  name: 'Bitcoin Early Sensor',              market: 'ES',  bias: 'SHORT', rr: '1:3.0', prob: 83, key: 'BTC drops, ES still high. ES about to follow.' },
+  { id: 9,  name: 'Dollar Weak, Gold + BTC Together',  market: 'GC',  bias: 'LONG',  rr: '1:4.0', prob: 77, key: 'DXY breaking down, both gold and BTC turning up.' },
+  { id: 10, name: 'Spring Effect on the Band',         market: 'NQ',  bias: 'LONG',  rr: '1:3.9', prob: 75, key: 'NQ touches green Direction band but dots never flip red.' },
+  { id: 11, name: 'Vertical Breakout, Massive Energy', market: 'CL',  bias: 'LONG',  rr: '1:3.3', prob: 81, key: 'CL breaks out with 3x normal energy. Wait for the retest.' },
+  { id: 12, name: 'False Stock Breakout',              market: 'ES',  bias: 'SHORT', rr: '1:4.3', prob: 79, key: 'ES makes new high but bonds rally + dollar bid. Incoherent. Fade it.' },
+  { id: 13, name: 'Perfect Alignment, 5 Markets Sync', market: 'ES',  bias: 'LONG',  rr: '1:3.8', prob: 88, key: 'When 5 of 8 octopus markets align, the 6th follows.' },
+  { id: 14, name: 'Gold Cracks, Risk-Off Confirmed',   market: 'GC',  bias: 'LONG',  rr: '1:4.7', prob: 84, key: 'Gold breaks higher once risk-off is confirmed across markets.' },
+  { id: 15, name: 'The Sniper, Total Convergence',     market: 'ES',  bias: 'SHORT', rr: '1:4.7', prob: 90, key: 'Every level of the matrix screams the same thing.' }
+];
+
+// ====================================================================
+// SINGLE-CHART STATE
+// ====================================================================
+let selectedSym = 'ES';
+let selectedRegime = 'unknown';
+let imagesSingle = [];
+let nextIdSingle = 1;
+let lastResultSingle = null;
+
+document.querySelectorAll('#instrumentPills .pill').forEach(p => {
+  p.addEventListener('click', () => {
+    document.querySelectorAll('#instrumentPills .pill').forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    selectedSym = p.dataset.sym;
+  });
+});
+document.querySelectorAll('#regimePills .pill').forEach(p => {
+  p.addEventListener('click', () => {
+    document.querySelectorAll('#regimePills .pill').forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    selectedRegime = p.dataset.reg;
+  });
+});
+
+async function fileToImage(f) {
+  if (!f.type.startsWith('image/')) return null;
+  const dataUrl = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(f);
+  });
+  return {
+    name: f.name || 'chart',
+    mime: f.type,
+    base64: dataUrl.split(',')[1],
+    dataUrl: dataUrl
+  };
+}
+
+// SINGLE upload
+const dropZoneSingle = document.getElementById('dropZoneSingle');
+const fileInputSingle = document.getElementById('fileInputSingle');
+const thumbsSingle = document.getElementById('thumbsSingle');
+
+dropZoneSingle.addEventListener('click', () => fileInputSingle.click());
+['dragover','dragenter'].forEach(e => dropZoneSingle.addEventListener(e, ev => {
+  ev.preventDefault(); dropZoneSingle.classList.add('dragging');
+}));
+['dragleave','drop'].forEach(e => dropZoneSingle.addEventListener(e, () => dropZoneSingle.classList.remove('dragging')));
+dropZoneSingle.addEventListener('drop', ev => { ev.preventDefault(); handleFilesSingle(ev.dataTransfer.files); });
+fileInputSingle.addEventListener('change', () => {
+  handleFilesSingle(fileInputSingle.files);
+  fileInputSingle.value = '';
+});
+
+async function handleFilesSingle(fileList) {
+  for (const f of fileList) {
+    if (imagesSingle.length >= 4) { alert('Max 4 images for single-chart mode.'); break; }
+    const img = await fileToImage(f);
+    if (!img) continue;
+    img.id = nextIdSingle++;
+    imagesSingle.push(img);
+  }
+  renderThumbsSingle();
+}
+
+function renderThumbsSingle() {
+  thumbsSingle.innerHTML = '';
+  for (const img of imagesSingle) {
+    const div = document.createElement('div');
+    div.className = 'thumb';
+    div.innerHTML =
+      '<img src="' + img.dataUrl + '" alt="' + escapeAttr(img.name) + '" />' +
+      '<div class="thumb-label">' + escapeHtml(img.name) + '</div>' +
+      '<button class="thumb-remove" data-id="' + img.id + '">&times;</button>';
+    thumbsSingle.appendChild(div);
+  }
+  thumbsSingle.querySelectorAll('.thumb-remove').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = parseInt(btn.dataset.id);
+      imagesSingle = imagesSingle.filter(i => i.id !== id);
+      renderThumbsSingle();
+    });
+  });
+  updateAttachStatus();
+}
+
+// ====================================================================
+// OCTOPUS STATE & UI
+// ====================================================================
+let octoSlots = {};
+let activeSlotSym = null;
+let lastResultOcto = null;
+
+const octoGrid = document.getElementById('octoGrid');
+const octoSlotInput = document.getElementById('octoSlotInput');
+const octoBulkDrop = document.getElementById('octoBulkDrop');
+const octoBulkInput = document.getElementById('octoBulkInput');
+
+function renderOctopus() {
+  octoGrid.innerHTML = '';
+  for (const m of OCTOPUS) {
+    const slot = document.createElement('div');
+    slot.className = 'octo-slot' + (octoSlots[m.sym] ? ' filled' : '');
+    slot.dataset.sym = m.sym;
+    slot.innerHTML =
+      '<div class="octo-symbol">' + m.sym + '</div>' +
+      '<div class="octo-name">' + m.name + '</div>' +
+      '<div class="octo-role">' + m.role + '</div>' +
+      '<button class="clear-btn" data-clear="' + m.sym + '">&times;</button>' +
+      (octoSlots[m.sym] ? ('<img src="' + octoSlots[m.sym].dataUrl + '" alt="' + m.sym + '" />') : '');
+    slot.addEventListener('click', e => {
+      if (e.target.classList.contains('clear-btn')) return;
+      activeSlotSym = m.sym;
+      octoSlotInput.click();
+    });
+    slot.addEventListener('dragover', e => { e.preventDefault(); slot.classList.add('dragging'); });
+    slot.addEventListener('dragleave', () => slot.classList.remove('dragging'));
+    slot.addEventListener('drop', async e => {
+      e.preventDefault(); e.stopPropagation();
+      slot.classList.remove('dragging');
+      const f = e.dataTransfer.files[0];
+      if (f) {
+        const img = await fileToImage(f);
+        if (img) { octoSlots[m.sym] = img; renderOctopus(); updateOctoCount(); }
+      }
+    });
+    octoGrid.appendChild(slot);
+  }
+  octoGrid.querySelectorAll('.clear-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      delete octoSlots[btn.dataset.clear];
+      renderOctopus(); updateOctoCount();
+    });
+  });
+}
+
+function updateOctoCount() {
+  document.getElementById('octoCount').textContent = Object.keys(octoSlots).length;
+  updateAttachStatus();
+}
+
+octoSlotInput.addEventListener('change', async () => {
+  const f = octoSlotInput.files[0];
+  if (f && activeSlotSym) {
+    const img = await fileToImage(f);
+    if (img) { octoSlots[activeSlotSym] = img; renderOctopus(); updateOctoCount(); }
+  }
+  octoSlotInput.value = '';
+});
+
+octoBulkDrop.addEventListener('click', () => octoBulkInput.click());
+['dragover','dragenter'].forEach(e => octoBulkDrop.addEventListener(e, ev => {
+  ev.preventDefault(); octoBulkDrop.classList.add('dragging');
+}));
+['dragleave','drop'].forEach(e => octoBulkDrop.addEventListener(e, () => octoBulkDrop.classList.remove('dragging')));
+octoBulkDrop.addEventListener('drop', async ev => { ev.preventDefault(); await assignBulkFiles(ev.dataTransfer.files); });
+octoBulkInput.addEventListener('change', async () => { await assignBulkFiles(octoBulkInput.files); octoBulkInput.value = ''; });
+
+async function assignBulkFiles(fileList) {
+  for (const f of fileList) {
+    const img = await fileToImage(f);
+    if (!img) continue;
+    const upper = (f.name || '').toUpperCase();
+    let assignedSym = null;
+    for (const m of OCTOPUS) {
+      const re = new RegExp('(^|[^A-Z])' + m.sym.replace('$', '\\$') + '([^A-Z]|$)');
+      if (re.test(upper) && !octoSlots[m.sym]) { assignedSym = m.sym; break; }
+    }
+    if (!assignedSym) {
+      for (const m of OCTOPUS) {
+        if (!octoSlots[m.sym]) { assignedSym = m.sym; break; }
+      }
+    }
+    if (assignedSym) octoSlots[assignedSym] = img;
+  }
+  renderOctopus(); updateOctoCount();
+}
+
+document.addEventListener('paste', async ev => {
+  const isOcto = document.getElementById('mode-octopus').classList.contains('active');
+  const isSingle = document.getElementById('mode-single').classList.contains('active');
+  if (!isOcto && !isSingle) return;
+  const items = ev.clipboardData && ev.clipboardData.items;
+  if (!items) return;
+  for (const it of items) {
+    if (it.type.startsWith('image/')) {
+      const f = it.getAsFile();
+      if (!f) continue;
+      const img = await fileToImage(f);
+      if (!img) continue;
+      if (isOcto) {
+        for (const m of OCTOPUS) {
+          if (!octoSlots[m.sym]) { octoSlots[m.sym] = img; break; }
+        }
+        renderOctopus(); updateOctoCount();
+      } else if (isSingle) {
+        if (imagesSingle.length < 4) {
+          img.id = nextIdSingle++;
+          imagesSingle.push(img);
+          renderThumbsSingle();
+        }
+      }
+    }
+  }
+});
+
+renderOctopus();
+
+// ====================================================================
+// AI CALLS
+// ====================================================================
+async function callMatrix() {
+  const key = keyInput.value.trim();
+  if (!key.startsWith('sk-ant-')) throw new Error('Add your Anthropic API key in the top-right field first.');
+  if (imagesSingle.length === 0) throw new Error('No charts attached yet. Either Capture from screen, paste with Ctrl+V, or drop/browse a file.');
+
+  const ctx = document.getElementById('ctxInput').value.trim();
+  const regimeText = selectedRegime === 'risk_on' ? 'Risk ON (declared)'
+                   : selectedRegime === 'risk_off' ? 'Risk OFF (declared)'
+                   : 'Unknown — infer if possible';
+
+  const relevant = ARCHETYPES.filter(a => a.market === selectedSym);
+  const archetypeList = relevant.length > 0
+    ? relevant.map(a => `  #${a.id} "${a.name}" — ${a.bias}, R:R ${a.rr}, ${a.prob}%. ${a.key}`).join('\n')
+    : '  (No archetype in the catalog targets this market — apply matrix logic generally.)';
+
+  const systemPrompt = `You are a futures trading second-opinion built on the Belkhayate intermarket method (book: Intermarket Mastery, 2026).
+
+You apply the 3-LEVEL DECISION MATRIX. A trade requires ALL THREE levels aligned. If any one is missing, the verdict is PASS.
+
+LEVEL 1 — MACRO (intermarket context)
+  Question: What is the octopus saying? Risk-on or risk-off? Who's the leader? Is this market the laggard?
+  User declared regime: ${regimeText}
+  Pass condition: regime is clear AND this market is plausibly the laggard (not the leader).
+
+LEVEL 2 — STRUCTURE (Belkhayate Pivots)
+  The 7 pivots, top to bottom: SI (extreme R), LA (strong R), SOL (moderate R), FA (central pivot), MI (moderate S), RÉ (strong S), DO (extreme S).
+  Above FA = premium → look for shorts. Below FA = discount → look for longs.
+  Pass condition: price is at/near a pivot you can trade against, AND you're on the right side of FA for the bias.
+
+LEVEL 3 — TIMING (Belkhayate Energy + Direction)
+  Energy: gray bars (buyers) vs blue bars (sellers). Big bars = real energy. Small bars = NO TRADE.
+  Look for divergences: price makes new high but buyer bars shrink → bearish; new low but seller bars shrink → bullish.
+  Direction: green dots = uptrend, red dots = downtrend. Color CHANGE is the only valid reversal — touching the band is not.
+  Pass condition: energy is alive AND direction color matches the bias.
+
+ARCHETYPES IN THE CATALOG FOR ${selectedSym}:
+${archetypeList}
+
+If the chart shown matches one of these archetypes, name it.
+
+Target market: ${selectedSym}
+${ctx ? 'User context: ' + ctx : ''}
+Charts uploaded: ${imagesSingle.length}${imagesSingle.length > 1 ? ' (likely target chart + higher timeframe context)' : ''}
+
+Respond with EXACTLY this JSON, no markdown fences, no preamble:
+
+{
+  "verdict": "LONG" | "SHORT" | "PASS",
+  "conviction": "HIGH" | "MEDIUM" | "LOW",
+  "one_line_reason": "Single sentence, max 22 words.",
+  "level_1_macro": { "status": "PASS" | "FAIL" | "WARN", "note": "1-2 sentences. State whether this market is the laggard, or what regime you infer." },
+  "level_2_structure": { "status": "PASS" | "FAIL" | "WARN", "note": "1-2 sentences. State which pivot price is near and premium/discount." },
+  "level_3_timing": { "status": "PASS" | "FAIL" | "WARN", "note": "1-2 sentences. State energy state and Direction color." },
+  "archetype_match": "If matches a catalog archetype, give name and number. Else 'No catalog archetype matches.'",
+  "entry_zone": "Specific price level if readable, else 'Cannot read levels precisely.'",
+  "stop_zone": "Specific stop level or fallback message.",
+  "tp1_zone": "Specific TP1 (next pivot in your favor) or fallback.",
+  "tp2_zone": "Specific TP2 (pivot beyond TP1) or '(optional)'",
+  "why_pass": "What would make you skip even if calling LONG/SHORT. Always include — every trade has a reason to pass."
+}
+
+HARD RULES:
+- PASS is correct when fewer than 3 of 3 levels align. Don't force a trade.
+- HIGH conviction is rare — reserve for clean alignment + matching archetype.
+- Never invent levels you can't read.
+- Default: pivot reached = profit taken.
+- Risk = 1% of capital per trade. Maximum.
+- Never enter mid-impulse. Always wait for retest.`;
+
+  const userContent = [];
+  for (const img of imagesSingle) {
+    userContent.push({ type: 'image', source: { type: 'base64', media_type: img.mime, data: img.base64 } });
+  }
+  userContent.push({ type: 'text', text: 'Run the 3-level Belkhayate matrix on this ' + selectedSym + ' setup. Respond ONLY with JSON.' });
+
+  return await fetchClaude({
+    model: 'claude-sonnet-4-5-20250929',
+    max_tokens: 2000,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userContent }]
+  }, key);
+}
+
+async function callOctopus() {
+  const key = keyInput.value.trim();
+  if (!key.startsWith('sk-ant-')) throw new Error('Add your Anthropic API key in the top-right field first.');
+  const symsLoaded = Object.keys(octoSlots);
+  if (symsLoaded.length < 3) throw new Error('Need at least 3 charts to run a meaningful scan. Capture from screen or drop saved files.');
+
+  const ctx = document.getElementById('octoCtxInput').value.trim();
+
+  const systemPrompt = `You are a futures trading desk applying the Belkhayate intermarket method.
+
+THE OCTOPUS — 8 markets:
+- DX  (US Dollar)     — Sun. Strong dollar = global contraction.
+- ZN  (10Y T-Notes)   — Conductor. Bond rally = risk-off.
+- JPY (Japanese Yen)  — Detonator. Yen rally = carry unwind.
+- GC  (Gold)          — Stress detector.
+- CL  (Crude Oil)     — Inflation engine.
+- HG  (Copper)        — Doctor Copper. Real economy.
+- ES  (S&P 500)       — Liquidity mirror. Lags.
+- BTC (Bitcoin)       — 24/7 sensor. Often LEADS stocks.
+
+THE 3 MORNING QUESTIONS:
+1. What is the dollar (DX) doing? Strong / weak / unclear?
+2. What are bonds (ZN) and yen (JPY) doing? Risk-on / off?
+3. Who is lagging? Which market hasn't yet absorbed the signal?
+
+Trader trades the LAGGARD, not the leader.
+
+Charts uploaded: ${symsLoaded.join(', ')}
+${symsLoaded.length < 8 ? 'Missing: ' + OCTOPUS.filter(m => !octoSlots[m.sym]).map(m => m.sym).join(', ') + '.' : ''}
+${ctx ? 'User context: ' + ctx : ''}
+
+Respond with EXACTLY this JSON, no markdown:
+
+{
+  "regime": "RISK ON" | "RISK OFF" | "MIXED" | "UNCLEAR",
+  "regime_conviction": "HIGH" | "MEDIUM" | "LOW",
+  "headline": "Single sentence, max 25 words.",
+  "dollar_read": "1-2 sentences on DX. If not provided, say so.",
+  "bonds_yen_read": "1-2 sentences on ZN and JPY together.",
+  "leader": "Which market is leading.",
+  "laggard": "Which market is the BEST trade today.",
+  "laggard_bias": "LONG" | "SHORT" | "PASS",
+  "laggard_reason": "1-2 sentences.",
+  "warnings": "Anything that says sit on hands today. Be honest about uncertainty."
+}
+
+Rules:
+- MIXED / UNCLEAR are valid. PASS is a valid trade choice.
+- HIGH conviction only if 5+ of 8 markets clearly agree.
+- Don't invent reads for charts not provided. Say "not provided."
+- Don't be a cheerleader.`;
+
+  const userContent = [];
+  for (const sym of symsLoaded) {
+    const img = octoSlots[sym];
+    userContent.push({ type: 'image', source: { type: 'base64', media_type: img.mime, data: img.base64 } });
+    userContent.push({ type: 'text', text: 'Above: ' + sym + ' (' + (OCTOPUS.find(m => m.sym === sym).name) + ')' });
+  }
+  userContent.push({ type: 'text', text: 'Run the octopus scan. JSON only.' });
+
+  return await fetchClaude({
+    model: 'claude-sonnet-4-5-20250929',
+    max_tokens: 2500,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userContent }]
+  }, key);
+}
+
+async function fetchClaude(body, key) {
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error('API ' + resp.status + ': ' + err.slice(0, 300));
+  }
+  const data = await resp.json();
+  const txt = data.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+  let cleaned = txt.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+  const fb = cleaned.indexOf('{');
+  const lb = cleaned.lastIndexOf('}');
+  if (fb >= 0 && lb > fb) cleaned = cleaned.slice(fb, lb + 1);
+  try { return JSON.parse(cleaned); }
+  catch (e) { return { _raw: txt, _error: 'Could not parse JSON.' }; }
+}
+
+// ====================================================================
+// RENDER — SINGLE
+// ====================================================================
+function renderSingle(result) {
+  document.getElementById('emptyStateSingle').classList.add('hidden');
+  document.getElementById('resultsBlockSingle').classList.remove('hidden');
+  document.getElementById('errBoxSingle').classList.add('hidden');
+  document.getElementById('savedIndicatorSingle').classList.remove('visible');
+
+  if (result._error) {
+    showError('errBoxSingle', result._error + '\n\n' + (result._raw || ''));
+    return;
+  }
+
+  const v = (result.verdict || 'PASS').toUpperCase();
+  const conv = (result.conviction || 'LOW').toUpperCase();
+  const cls = v === 'LONG' ? 'long' : v === 'SHORT' ? 'short' : 'pass';
+
+  document.getElementById('verdictCardSingle').className = 'verdict-card ' + cls;
+  const callEl = document.getElementById('verdictCallSingle');
+  callEl.className = 'verdict-call ' + cls;
+  callEl.textContent = v;
+  document.getElementById('verdictConvictionSingle').innerHTML = 'Conviction: <strong>' + escapeHtml(conv) + '</strong>';
+
+  const reasonEl = document.getElementById('verdictReasonSingle');
+  if (result.one_line_reason) {
+    reasonEl.textContent = result.one_line_reason;
+    reasonEl.classList.remove('hidden');
+  } else reasonEl.classList.add('hidden');
+
+  const matrixEl = document.getElementById('matrixSingle');
+  const levels = [
+    { num: 1, title: 'Macro',     subtitle: 'Intermarket / regime',          data: result.level_1_macro },
+    { num: 2, title: 'Structure', subtitle: 'Pivot zone (premium/discount)', data: result.level_2_structure },
+    { num: 3, title: 'Timing',    subtitle: 'Energy + Direction',            data: result.level_3_timing }
+  ];
+  matrixEl.innerHTML = levels.map(L => {
+    const status = ((L.data && L.data.status) || 'WARN').toUpperCase();
+    const note = (L.data && L.data.note) || '';
+    const statusClass = status === 'PASS' ? 'pass' : status === 'FAIL' ? 'fail' : 'warn';
+    return '<div class="matrix-level">' +
+      '<div class="level-num">' + L.num + '</div>' +
+      '<div class="level-body">' +
+        '<div class="level-title">' + L.title + ' &middot; <span style="color:var(--ink-mute);font-size:0.78rem;font-weight:400;">' + L.subtitle + '</span></div>' +
+        '<div class="level-detail">' + escapeHtml(note) + '</div>' +
+      '</div>' +
+      '<div class="level-status ' + statusClass + '">' + status + '</div>' +
+    '</div>';
+  }).join('');
+
+  const archEl = document.getElementById('archetypeSingle');
+  if (result.archetype_match && !/no\s*(catalog|archetype|match)/i.test(result.archetype_match)) {
+    archEl.classList.remove('hidden');
+    archEl.classList.remove('no-match');
+    archEl.innerHTML = '<div class="archetype-label">Archetype match</div><strong>' + escapeHtml(result.archetype_match) + '</strong>';
+  } else if (result.archetype_match) {
+    archEl.classList.remove('hidden');
+    archEl.classList.add('no-match');
+    archEl.innerHTML = '<div class="archetype-label">Archetype</div>' + escapeHtml(result.archetype_match);
+  } else {
+    archEl.classList.add('hidden');
+  }
+
+  const details = document.getElementById('detailsSingle');
+  const rows = [
+    ['Entry zone', result.entry_zone],
+    ['Stop',       result.stop_zone],
+    ['TP1',        result.tp1_zone],
+    ['TP2',        result.tp2_zone],
+    ['Why pass',   result.why_pass]
+  ];
+  details.innerHTML = rows
+    .filter(r => r[1] && String(r[1]).trim())
+    .map(r => '<div class="detail-row"><div class="key">' + escapeHtml(r[0]) + '</div><div class="val">' + escapeHtml(r[1]) + '</div></div>')
+    .join('');
+}
+
+// ====================================================================
+// RENDER — OCTOPUS
+// ====================================================================
+function renderOcto(result) {
+  document.getElementById('emptyStateOcto').classList.add('hidden');
+  document.getElementById('resultsBlockOcto').classList.remove('hidden');
+  document.getElementById('errBoxOcto').classList.add('hidden');
+  document.getElementById('savedIndicatorOcto').classList.remove('visible');
+
+  if (result._error) {
+    showError('errBoxOcto', result._error + '\n\n' + (result._raw || ''));
+    return;
+  }
+
+  const reg = (result.regime || 'UNCLEAR').toUpperCase();
+  const conv = (result.regime_conviction || 'LOW').toUpperCase();
+
+  let regClass = 'pass';
+  if (reg.includes('ON') && !reg.includes('OFF')) regClass = 'long';
+  else if (reg.includes('OFF')) regClass = 'short';
+
+  document.getElementById('verdictCardOcto').className = 'verdict-card ' + regClass;
+  const callEl = document.getElementById('verdictCallOcto');
+  callEl.className = 'verdict-call ' + regClass;
+  callEl.style.fontSize = 'clamp(1.8rem, 4vw, 2.6rem)';
+  callEl.textContent = reg;
+  document.getElementById('verdictConvictionOcto').innerHTML = 'Conviction: <strong>' + escapeHtml(conv) + '</strong>' +
+    (result.headline ? '<div style="margin-top:1rem; font-family:Fraunces,serif; font-style:italic; color:var(--ink); text-transform:none; letter-spacing:0; font-size:1rem;">' + escapeHtml(result.headline) + '</div>' : '');
+
+  const details = document.getElementById('detailsOcto');
+  const laggardBias = (result.laggard_bias || '').toUpperCase();
+  const laggardCls = laggardBias === 'LONG' ? 'long' : laggardBias === 'SHORT' ? 'short' : 'pass';
+  const laggardLine = (result.laggard ? '<strong>' + escapeHtml(result.laggard) + '</strong>' : '') +
+                      (laggardBias ? ' &middot; <span class="reg-pill ' + (laggardCls === 'long' ? 'on' : laggardCls === 'short' ? 'off' : 'mixed') + '">' + laggardBias + '</span>' : '');
+
+  const rows = [
+    ['Q1 — Dollar', result.dollar_read],
+    ['Q2 — Bonds + Yen', result.bonds_yen_read],
+    ['Leader', result.leader],
+    ['Best trade', laggardLine + (result.laggard_reason ? '<br><span style="color:var(--ink-mute);font-size:0.78rem;">' + escapeHtml(result.laggard_reason) + '</span>' : '')],
+    ['Warnings', result.warnings]
+  ];
+  details.innerHTML = rows
+    .filter(r => r[1] && String(r[1]).trim())
+    .map(r => '<div class="detail-row"><div class="key">' + escapeHtml(r[0]) + '</div><div class="val">' + r[1] + '</div></div>')
+    .join('');
+}
+
+function showError(boxId, msg) {
+  const box = document.getElementById(boxId);
+  box.classList.remove('hidden');
+  box.textContent = '\u26A0 ' + msg;
+}
+
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, m => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[m]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+// ====================================================================
+// MAIN BUTTONS
+// ====================================================================
+const btnSingle = document.getElementById('analyzeBtnSingle');
+btnSingle.addEventListener('click', async () => {
+  btnSingle.disabled = true;
+  btnSingle.innerHTML = '<span class="pulse"></span> Running matrix&hellip;';
+  try {
+    const result = await callMatrix();
+    lastResultSingle = result;
+    renderSingle(result);
+  } catch (e) {
+    document.getElementById('emptyStateSingle').classList.add('hidden');
+    document.getElementById('resultsBlockSingle').classList.remove('hidden');
+    showError('errBoxSingle', e.message);
+    document.getElementById('verdictCallSingle').textContent = '\u2014';
+    document.getElementById('verdictCallSingle').className = 'verdict-call';
+    document.getElementById('verdictCardSingle').className = 'verdict-card';
+    document.getElementById('verdictConvictionSingle').textContent = '';
+    document.getElementById('verdictReasonSingle').classList.add('hidden');
+    document.getElementById('matrixSingle').innerHTML = '';
+    document.getElementById('detailsSingle').innerHTML = '';
+    document.getElementById('archetypeSingle').classList.add('hidden');
+  } finally {
+    btnSingle.disabled = false;
+    btnSingle.textContent = 'Run the 3-Level Matrix';
+  }
+});
+
+const btnOcto = document.getElementById('analyzeBtnOcto');
+btnOcto.addEventListener('click', async () => {
+  btnOcto.disabled = true;
+  btnOcto.innerHTML = '<span class="pulse"></span> Reading the octopus&hellip;';
+  try {
+    const result = await callOctopus();
+    lastResultOcto = result;
+    renderOcto(result);
+  } catch (e) {
+    document.getElementById('emptyStateOcto').classList.add('hidden');
+    document.getElementById('resultsBlockOcto').classList.remove('hidden');
+    showError('errBoxOcto', e.message);
+    document.getElementById('verdictCallOcto').textContent = '\u2014';
+    document.getElementById('verdictCallOcto').className = 'verdict-call';
+    document.getElementById('verdictCardOcto').className = 'verdict-card';
+    document.getElementById('verdictConvictionOcto').textContent = '';
+    document.getElementById('detailsOcto').innerHTML = '';
+  } finally {
+    btnOcto.disabled = false;
+    btnOcto.textContent = 'Run Octopus Scan';
+  }
+});
+
+// ====================================================================
+// SAVE TO JOURNAL
+// ====================================================================
+document.getElementById('saveBtnSingle').addEventListener('click', async () => {
+  if (!lastResultSingle) { alert('Run a matrix first.'); return; }
+  const btn = document.getElementById('saveBtnSingle');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    // Compress images for storage
+    const compressedImages = [];
+    for (const img of imagesSingle) {
+      const compressed = await compressImage(img.dataUrl);
+      compressedImages.push({ name: img.name, dataUrl: compressed });
+    }
+
+    const entry = {
+      id: newId(),
+      mode: 'single',
+      ts: Date.now(),
+      symbol: selectedSym,
+      regime_input: selectedRegime,
+      context: document.getElementById('ctxInput').value.trim(),
+      result: lastResultSingle,
+      images: compressedImages,
+      outcome: 'open',  // open | win | loss | skipped
+      pnl: null,
+      notes: ''
+    };
+
+    const journal = loadJournal();
+    journal.unshift(entry);
+    if (saveJournal(journal)) {
+      document.getElementById('savedIndicatorSingle').classList.add('visible');
+    }
+  } catch (e) {
+    alert('Save failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save to Journal';
+  }
+});
+
+document.getElementById('saveBtnOcto').addEventListener('click', async () => {
+  if (!lastResultOcto) { alert('Run an octopus scan first.'); return; }
+  const btn = document.getElementById('saveBtnOcto');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const compressedSlots = {};
+    for (const sym of Object.keys(octoSlots)) {
+      const compressed = await compressImage(octoSlots[sym].dataUrl);
+      compressedSlots[sym] = { name: octoSlots[sym].name, dataUrl: compressed };
+    }
+
+    const entry = {
+      id: newId(),
+      mode: 'octopus',
+      ts: Date.now(),
+      context: document.getElementById('octoCtxInput').value.trim(),
+      result: lastResultOcto,
+      slots: compressedSlots,
+      outcome: 'open',
+      pnl: null,
+      notes: ''
+    };
+
+    const journal = loadJournal();
+    journal.unshift(entry);
+    if (saveJournal(journal)) {
+      document.getElementById('savedIndicatorOcto').classList.add('visible');
+    }
+  } catch (e) {
+    alert('Save failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save to Journal';
+  }
+});
+
+document.getElementById('discardBtnSingle').addEventListener('click', () => {
+  document.getElementById('resultsBlockSingle').classList.add('hidden');
+  document.getElementById('emptyStateSingle').classList.remove('hidden');
+  lastResultSingle = null;
+});
+document.getElementById('discardBtnOcto').addEventListener('click', () => {
+  document.getElementById('resultsBlockOcto').classList.add('hidden');
+  document.getElementById('emptyStateOcto').classList.remove('hidden');
+  lastResultOcto = null;
+});
+
+// ====================================================================
+// JOURNAL VIEW
+// ====================================================================
+let activeFilter = 'all';
+let expandedEntryId = null;
+
+document.querySelectorAll('#journalFilters .pill').forEach(p => {
+  p.addEventListener('click', () => {
+    document.querySelectorAll('#journalFilters .pill').forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    activeFilter = p.dataset.filter;
+    renderJournal();
+  });
+});
+
+function filterEntries(entries) {
+  if (activeFilter === 'all') return entries;
+  if (activeFilter === 'single') return entries.filter(e => e.mode === 'single');
+  if (activeFilter === 'octopus') return entries.filter(e => e.mode === 'octopus');
+  return entries.filter(e => e.outcome === activeFilter);
+}
+
+function fmtDate(ts) {
+  const d = new Date(ts);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function fmtTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+function renderJournal() {
+  const allEntries = loadJournal();
+  const entries = filterEntries(allEntries);
+  const list = document.getElementById('journalList');
+  const empty = document.getElementById('journalEmpty');
+
+  // Stats
+  renderStats(allEntries);
+
+  if (entries.length === 0) {
+    empty.classList.remove('hidden');
+    empty.textContent = allEntries.length === 0 ? 'No entries yet. Run a matrix or octopus scan and click Save to Journal.' : 'No entries match this filter.';
+    list.innerHTML = '';
+    return;
+  }
+  empty.classList.add('hidden');
+
+  list.innerHTML = entries.map(e => {
+    const verdict = e.mode === 'single'
+      ? (e.result && e.result.verdict ? e.result.verdict.toUpperCase() : 'PASS')
+      : (e.result && e.result.regime ? e.result.regime.toUpperCase() : 'UNCLEAR');
+    const verdictCls = verdict === 'LONG' || verdict === 'RISK ON' ? 'long'
+                     : verdict === 'SHORT' || verdict === 'RISK OFF' ? 'short'
+                     : 'pass';
+    const reason = e.result && e.result.one_line_reason ? e.result.one_line_reason
+                 : e.result && e.result.headline ? e.result.headline : '';
+    const symLabel = e.mode === 'single' ? '<span class="je-symbol">' + escapeHtml(e.symbol || '') + '</span>'
+                   : '<span class="je-symbol">8 markets</span>';
+    const expanded = e.id === expandedEntryId;
+
+    return '<div class="journal-entry' + (expanded ? ' expanded' : '') + '" data-id="' + e.id + '">' +
+      '<div class="je-meta">' +
+        '<div class="je-date">' + fmtDate(e.ts) + '</div>' +
+        '<div class="je-time">' + fmtTime(e.ts) + '</div>' +
+        '<div class="je-mode">' + (e.mode === 'single' ? '3-level matrix' : 'Octopus scan') + '</div>' +
+      '</div>' +
+      '<div class="je-body">' +
+        symLabel + '<span class="je-verdict ' + verdictCls + '">' + escapeHtml(verdict) + '</span>' +
+        (reason ? '<div class="je-reason">' + escapeHtml(reason) + '</div>' : '') +
+      '</div>' +
+      '<div class="je-outcome">' +
+        outcomeBadge(e.outcome) +
+        (e.pnl !== null && e.pnl !== undefined ? '<div style="margin-top:0.3rem; color:' + (e.pnl >= 0 ? 'var(--long)' : 'var(--short)') + '; font-family:Fraunces,serif; font-size:0.95rem;">' + (e.pnl >= 0 ? '+' : '') + '$' + Number(e.pnl).toLocaleString() + '</div>' : '') +
+      '</div>' +
+      (expanded ? renderEntryDetail(e) : '') +
+    '</div>';
+  }).join('');
+
+  // Click handlers
+  list.querySelectorAll('.journal-entry').forEach(el => {
+    el.addEventListener('click', e => {
+      // Ignore clicks on buttons/inputs inside the entry
+      if (e.target.closest('button, input, textarea, img')) return;
+      const id = el.dataset.id;
+      expandedEntryId = expandedEntryId === id ? null : id;
+      renderJournal();
+    });
+  });
+
+  // Outcome buttons
+  list.querySelectorAll('.outcome-btn').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = b.dataset.id;
+      const outcome = b.dataset.outcome;
+      const journal = loadJournal();
+      const idx = journal.findIndex(x => x.id === id);
+      if (idx >= 0) {
+        journal[idx].outcome = outcome;
+        saveJournal(journal);
+        renderJournal();
+      }
+    });
+  });
+
+  // P&L inputs
+  list.querySelectorAll('.pl-input').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const id = inp.dataset.id;
+      const journal = loadJournal();
+      const idx = journal.findIndex(x => x.id === id);
+      if (idx >= 0) {
+        const v = inp.value.trim();
+        journal[idx].pnl = v === '' ? null : parseFloat(v);
+        saveJournal(journal);
+        renderJournal();
+      }
+    });
+  });
+
+  // Notes inputs
+  list.querySelectorAll('.notes-input').forEach(t => {
+    t.addEventListener('change', e => {
+      const id = t.dataset.id;
+      const journal = loadJournal();
+      const idx = journal.findIndex(x => x.id === id);
+      if (idx >= 0) {
+        journal[idx].notes = t.value;
+        saveJournal(journal);
+      }
+    });
+  });
+
+  // Delete
+  list.querySelectorAll('.delete-btn').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = b.dataset.id;
+      if (!confirm('Delete this entry?')) return;
+      let journal = loadJournal();
+      journal = journal.filter(x => x.id !== id);
+      saveJournal(journal);
+      if (expandedEntryId === id) expandedEntryId = null;
+      renderJournal();
+    });
+  });
+
+  // Lightbox on image click
+  list.querySelectorAll('.je-images img').forEach(img => {
+    img.addEventListener('click', e => {
+      e.stopPropagation();
+      document.getElementById('lightboxImg').src = img.src;
+      document.getElementById('lightbox').classList.add('visible');
+    });
+  });
+}
+
+function outcomeBadge(outcome) {
+  const map = {
+    open: ['Open', 'open'],
+    win: ['Win', 'win'],
+    loss: ['Loss', 'loss'],
+    skipped: ['Skipped', 'skipped']
+  };
+  const [label, cls] = map[outcome] || ['Open', 'open'];
+  return '<span class="outcome-badge ' + cls + '">' + label + '</span>';
+}
+
+function renderEntryDetail(e) {
+  let imagesHtml = '';
+  if (e.mode === 'single' && e.images) {
+    imagesHtml = '<div class="je-images">' +
+      e.images.map(im => '<img src="' + im.dataUrl + '" alt="" />').join('') + '</div>';
+  } else if (e.mode === 'octopus' && e.slots) {
+    imagesHtml = '<div class="je-images">' +
+      Object.keys(e.slots).map(s =>
+        '<div style="position:relative;"><img src="' + e.slots[s].dataUrl + '" alt="' + s + '" /><div style="position:absolute;top:2px;left:2px;background:rgba(0,0,0,0.85);color:var(--accent);padding:1px 5px;border-radius:2px;font-family:Fraunces,serif;font-weight:700;font-size:0.7rem;">' + s + '</div></div>'
+      ).join('') + '</div>';
+  }
+
+  let resultDetailHtml = '';
+  if (e.mode === 'single' && e.result) {
+    const r = e.result;
+    const detRows = [
+      ['Conviction', r.conviction],
+      ['Macro',  r.level_1_macro && r.level_1_macro.status + ' — ' + (r.level_1_macro.note || '')],
+      ['Structure', r.level_2_structure && r.level_2_structure.status + ' — ' + (r.level_2_structure.note || '')],
+      ['Timing', r.level_3_timing && r.level_3_timing.status + ' — ' + (r.level_3_timing.note || '')],
+      ['Archetype', r.archetype_match],
+      ['Entry', r.entry_zone],
+      ['Stop',  r.stop_zone],
+      ['TP1',   r.tp1_zone],
+      ['TP2',   r.tp2_zone],
+      ['Why pass', r.why_pass]
+    ];
+    resultDetailHtml = '<div class="details">' +
+      detRows.filter(r => r[1] && String(r[1]).trim())
+             .map(r => '<div class="detail-row"><div class="key">' + escapeHtml(r[0]) + '</div><div class="val">' + escapeHtml(r[1]) + '</div></div>')
+             .join('') + '</div>';
+  } else if (e.mode === 'octopus' && e.result) {
+    const r = e.result;
+    const detRows = [
+      ['Conviction', r.regime_conviction],
+      ['Q1 — Dollar', r.dollar_read],
+      ['Q2 — Bonds + Yen', r.bonds_yen_read],
+      ['Leader', r.leader],
+      ['Best trade', (r.laggard || '') + (r.laggard_bias ? ' · ' + r.laggard_bias : '') + (r.laggard_reason ? ' — ' + r.laggard_reason : '')],
+      ['Warnings', r.warnings]
+    ];
+    resultDetailHtml = '<div class="details">' +
+      detRows.filter(r => r[1] && String(r[1]).trim())
+             .map(r => '<div class="detail-row"><div class="key">' + escapeHtml(r[0]) + '</div><div class="val">' + escapeHtml(r[1]) + '</div></div>')
+             .join('') + '</div>';
+  }
+
+  const isOpen = e.outcome === 'open';
+  const outcomeBtns = '<div class="outcome-buttons">' +
+    '<span style="font-size:0.7rem; color:var(--ink-mute); text-transform:uppercase; letter-spacing:0.08em; align-self:center; margin-right:0.5rem;">Outcome:</span>' +
+    '<button class="btn outcome-btn ' + (e.outcome==='win'?'btn-long':'') + '" data-id="' + e.id + '" data-outcome="win">Win</button>' +
+    '<button class="btn outcome-btn ' + (e.outcome==='loss'?'btn-danger':'') + '" data-id="' + e.id + '" data-outcome="loss">Loss</button>' +
+    '<button class="btn outcome-btn" data-id="' + e.id + '" data-outcome="skipped">Skipped</button>' +
+    '<button class="btn outcome-btn" data-id="' + e.id + '" data-outcome="open">Reset</button>' +
+    '<span style="font-size:0.7rem; color:var(--ink-mute); margin-left:1rem;">P&amp;L $:</span>' +
+    '<input type="number" class="pl-input" data-id="' + e.id + '" value="' + (e.pnl !== null && e.pnl !== undefined ? e.pnl : '') + '" placeholder="±" step="any" />' +
+    '<button class="btn btn-danger delete-btn" data-id="' + e.id + '" style="margin-left:auto;">Delete</button>' +
+    '</div>';
+
+  const notesField = '<div style="margin-top:0.8rem;">' +
+    '<div style="font-size:0.7rem; color:var(--ink-mute); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.3rem;">Notes</div>' +
+    '<textarea class="text-input notes notes-input" data-id="' + e.id + '" placeholder="Why you took / skipped, what happened, what you learned...">' + escapeHtml(e.notes || '') + '</textarea>' +
+    '</div>';
+
+  const ctx = e.context ? '<div style="font-size:0.78rem; color:var(--ink-mute); margin-bottom:0.6rem;"><em>Context: ' + escapeHtml(e.context) + '</em></div>' : '';
+
+  return '<div class="je-detail">' + ctx + resultDetailHtml + imagesHtml + outcomeBtns + notesField + '</div>';
+}
+
+function renderStats(entries) {
+  const grid = document.getElementById('statGrid');
+  const total = entries.length;
+  const settled = entries.filter(e => e.outcome === 'win' || e.outcome === 'loss');
+  const wins = entries.filter(e => e.outcome === 'win').length;
+  const losses = entries.filter(e => e.outcome === 'loss').length;
+  const skipped = entries.filter(e => e.outcome === 'skipped').length;
+  const open = entries.filter(e => e.outcome === 'open').length;
+  const winRate = settled.length ? (wins / settled.length * 100) : null;
+
+  const pnlSum = entries.reduce((s, e) => s + (e.pnl || 0), 0);
+  const winsPnl = entries.filter(e => e.outcome === 'win' && e.pnl).reduce((s, e) => s + e.pnl, 0);
+  const lossPnl = entries.filter(e => e.outcome === 'loss' && e.pnl).reduce((s, e) => s + e.pnl, 0);
+  const profitFactor = lossPnl < 0 ? (winsPnl / Math.abs(lossPnl)) : null;
+
+  // Single-mode: aggreement check — do AI verdicts predict outcomes?
+  const singles = entries.filter(e => e.mode === 'single');
+  const singleSettled = singles.filter(e => e.outcome === 'win' || e.outcome === 'loss');
+  const aiCalledTrade = singleSettled.filter(e => {
+    const v = e.result && e.result.verdict ? e.result.verdict.toUpperCase() : 'PASS';
+    return v === 'LONG' || v === 'SHORT';
+  });
+  const aiCalledPass = singles.filter(e => {
+    const v = e.result && e.result.verdict ? e.result.verdict.toUpperCase() : 'PASS';
+    return v === 'PASS';
+  });
+  const aiTradeWinRate = aiCalledTrade.length
+    ? (aiCalledTrade.filter(e => e.outcome === 'win').length / aiCalledTrade.length * 100)
+    : null;
+
+  const cards = [
+    ['Total entries', total, ''],
+    ['Wins / Losses', wins + ' / ' + losses, settled.length + ' settled, ' + open + ' open, ' + skipped + ' skipped'],
+    ['Win rate', winRate !== null ? winRate.toFixed(1) + '%' : '—', winRate !== null ? 'on ' + settled.length + ' settled trades' : 'need settled trades'],
+    ['Net P&L', '$' + pnlSum.toLocaleString(), pnlSum >= 0 ? 'gross' : 'net loss', pnlSum >= 0 ? 'long' : 'short'],
+    ['Profit factor', profitFactor !== null ? profitFactor.toFixed(2) : '—', profitFactor !== null ? (profitFactor > 1 ? 'profitable' : 'unprofitable') : 'need wins + losses'],
+    ['AI: when it called a trade', aiTradeWinRate !== null ? aiTradeWinRate.toFixed(1) + '%' : '—', aiTradeWinRate !== null ? 'win rate on ' + aiCalledTrade.length + ' settled' : 'need settled trades']
+  ];
+
+  grid.innerHTML = cards.map(c => {
+    const colorCls = c[3] === 'long' ? ' long' : c[3] === 'short' ? ' short' : c[1] !== '—' ? ' accent' : '';
+    return '<div class="stat-card">' +
+      '<div class="stat-label">' + c[0] + '</div>' +
+      '<div class="stat-val' + colorCls + '">' + c[1] + '</div>' +
+      (c[2] ? '<div class="stat-sub">' + c[2] + '</div>' : '') +
+    '</div>';
+  }).join('');
+}
+
+// EXPORT / IMPORT
+document.getElementById('exportJsonBtn').addEventListener('click', () => {
+  const data = JSON.stringify(loadJournal(), null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'octopus-journal-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('exportCsvBtn').addEventListener('click', () => {
+  const entries = loadJournal();
+  const headers = ['date','time','mode','symbol','verdict','conviction','one_line_reason','outcome','pnl','notes'];
+  const rows = [headers.join(',')];
+  for (const e of entries) {
+    const d = new Date(e.ts);
+    const verdict = e.mode === 'single'
+      ? (e.result && e.result.verdict || '')
+      : (e.result && e.result.regime || '');
+    const conviction = e.mode === 'single'
+      ? (e.result && e.result.conviction || '')
+      : (e.result && e.result.regime_conviction || '');
+    const reason = (e.result && (e.result.one_line_reason || e.result.headline)) || '';
+    const row = [
+      d.toISOString().slice(0,10),
+      d.toTimeString().slice(0,5),
+      e.mode,
+      e.mode === 'single' ? (e.symbol || '') : '8-markets',
+      verdict,
+      conviction,
+      reason,
+      e.outcome,
+      e.pnl !== null && e.pnl !== undefined ? e.pnl : '',
+      e.notes || ''
+    ].map(v => '"' + String(v).replace(/"/g, '""') + '"');
+    rows.push(row.join(','));
+  }
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'octopus-journal-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importInput').click();
+});
+document.getElementById('importInput').addEventListener('change', async () => {
+  const f = document.getElementById('importInput').files[0];
+  if (!f) return;
+  try {
+    const text = await f.text();
+    const data = JSON.parse(text);
+    if (!Array.isArray(data)) throw new Error('Imported file is not an array.');
+    const action = confirm('Import ' + data.length + ' entries?\n\nOK = merge with existing\nCancel = abort');
+    if (!action) return;
+    const existing = loadJournal();
+    const existingIds = new Set(existing.map(e => e.id));
+    const newOnes = data.filter(e => !existingIds.has(e.id));
+    const merged = [...existing, ...newOnes].sort((a, b) => b.ts - a.ts);
+    saveJournal(merged);
+    alert('Imported ' + newOnes.length + ' new entries (' + (data.length - newOnes.length) + ' duplicates skipped).');
+    renderJournal();
+  } catch (e) {
+    alert('Import failed: ' + e.message);
+  }
+  document.getElementById('importInput').value = '';
+});
+
+document.getElementById('clearAllBtn').addEventListener('click', () => {
+  const entries = loadJournal();
+  if (entries.length === 0) { alert('Journal is already empty.'); return; }
+  if (!confirm('Delete ALL ' + entries.length + ' journal entries? This cannot be undone.\n\nConsider exporting first.')) return;
+  saveJournal([]);
+  expandedEntryId = null;
+  renderJournal();
+});
+
+// Lightbox close
+document.getElementById('lightbox').addEventListener('click', () => {
+  document.getElementById('lightbox').classList.remove('visible');
+});
+
+// ====================================================================
+// SCREEN CAPTURE — getDisplayMedia + region cropping
+// ====================================================================
+const captureOverlay = document.getElementById('captureOverlay');
+const captureCanvas = document.getElementById('captureCanvas');
+const captureCtx = captureCanvas.getContext('2d');
+const captureRect = document.getElementById('captureRect');
+const captureCanvasWrap = document.getElementById('captureCanvasWrap');
+const captureStatus = document.getElementById('captureStatus');
+const captureTarget = document.getElementById('captureTarget');
+const captureRecent = document.getElementById('captureRecent');
+const captureDoneBtn = document.getElementById('captureDoneBtn');
+
+let captureStream = null;
+let captureVideo = null;
+let captureRefreshTimer = null;
+let captureMode = null;
+let captureDragStart = null;
+let captureSessionCount = 0;
+
+function buildCaptureTargetOptions() {
+  captureTarget.innerHTML = '';
+  if (captureMode === 'octopus') {
+    let firstEmpty = null;
+    for (const m of OCTOPUS) {
+      const opt = document.createElement('option');
+      opt.value = m.sym;
+      const filled = octoSlots[m.sym] ? '\u2713 ' : '';
+      opt.textContent = filled + m.sym + ' \u2014 ' + m.name;
+      captureTarget.appendChild(opt);
+      if (!octoSlots[m.sym] && firstEmpty === null) firstEmpty = m.sym;
+    }
+    if (firstEmpty) captureTarget.value = firstEmpty;
+    captureTarget.style.display = '';
+  } else {
+    const opt = document.createElement('option');
+    opt.value = 'single';
+    opt.textContent = 'Adds to single-chart upload';
+    captureTarget.appendChild(opt);
+    captureTarget.style.display = 'none';
+  }
+}
+
+async function startCapture(mode) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+    alert('Your browser does not support screen capture. Try Chrome, Edge, or Firefox.');
+    return;
+  }
+  try {
+    captureStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: false
+    });
+  } catch (e) {
+    if (e.name === 'NotAllowedError') return;
+    alert('Could not start capture: ' + e.message);
+    return;
+  }
+
+  captureMode = mode;
+  captureSessionCount = 0;
+  captureRecent.innerHTML = '<span class="capture-recent-label">Captured this session:</span>';
+  buildCaptureTargetOptions();
+  updateCaptureStatus();
+
+  document.getElementById('captureBtnSingle').classList.toggle('active', mode === 'single');
+  document.getElementById('captureBtnOcto').classList.toggle('active', mode === 'octopus');
+
+  // Show overlay BEFORE creating the video, so layout is computed
+  captureOverlay.classList.add('visible');
+  showCaptureLoader('Starting screen share\u2026');
+  updateDebug('Stream acquired. Building video element\u2026');
+
+  // Create the video element AND attach it to the DOM (offscreen) — some browsers won't fire
+  // metadata events for orphaned video elements
+  captureVideo = document.createElement('video');
+  captureVideo.muted = true;
+  captureVideo.playsInline = true;
+  captureVideo.autoplay = true;
+  captureVideo.style.position = 'fixed';
+  captureVideo.style.left = '-99999px';
+  captureVideo.style.top = '-99999px';
+  captureVideo.style.width = '1px';
+  captureVideo.style.height = '1px';
+  document.body.appendChild(captureVideo);
+  captureVideo.srcObject = captureStream;
+
+  // Stop handler — user clicks browser's "Stop sharing" button
+  captureStream.getVideoTracks()[0].addEventListener('ended', () => {
+    updateDebug('Stream ended by user.');
+    stopCapture();
+  });
+
+  // Wait for dimensions, with diagnostic logging
+  let firstFrameSeen = false;
+  const ready = new Promise((resolve, reject) => {
+    let pollTimer = null;
+    let elapsed = 0;
+    const timeoutMs = 8000;
+
+    function check() {
+      elapsed += 100;
+      const vw = captureVideo.videoWidth;
+      const vh = captureVideo.videoHeight;
+      const rs = captureVideo.readyState;
+      updateDebug(
+        'Waiting for first frame\u2026 (' + (elapsed/1000).toFixed(1) + 's)\n' +
+        'video.videoWidth = ' + vw + '\n' +
+        'video.videoHeight = ' + vh + '\n' +
+        'video.readyState = ' + rs + ' (' + readyStateName(rs) + ')\n' +
+        'stream.active = ' + captureStream.active + '\n' +
+        'tracks = ' + captureStream.getVideoTracks().length
+      );
+      if (vw > 0 && vh > 0 && rs >= 2) {
+        clearInterval(pollTimer);
+        resolve();
+      } else if (elapsed >= timeoutMs) {
+        clearInterval(pollTimer);
+        reject(new Error('Timed out after ' + (timeoutMs/1000) + 's. videoWidth=' + vw + ', readyState=' + rs));
+      }
+    }
+
+    captureVideo.addEventListener('loadedmetadata', () => updateDebug('event: loadedmetadata'));
+    captureVideo.addEventListener('loadeddata', () => updateDebug('event: loadeddata'));
+    captureVideo.addEventListener('canplay', () => updateDebug('event: canplay'));
+    captureVideo.addEventListener('playing', () => updateDebug('event: playing'));
+    pollTimer = setInterval(check, 100);
+    check();
+  });
+
+  try {
+    await captureVideo.play();
+  } catch (e) {
+    updateDebug('video.play() failed: ' + e.message);
+    // Some browsers throw on play() during capture; ignore and keep waiting
+  }
+
+  try {
+    await ready;
+  } catch (e) {
+    alert(
+      'Capture failed.\n\n' +
+      e.message + '\n\n' +
+      'Diagnostics: open browser DevTools (F12) and check the Console tab for more info. ' +
+      'Try: (1) reload the page, (2) pick "Entire screen" instead of a window, ' +
+      '(3) try a different browser (Chrome / Edge usually work best).'
+    );
+    stopCapture();
+    return;
+  }
+
+  // Got it — set up canvas at the actual video resolution
+  captureCanvas.width = captureVideo.videoWidth;
+  captureCanvas.height = captureVideo.videoHeight;
+  updateDebug(
+    'Live: ' + captureVideo.videoWidth + 'x' + captureVideo.videoHeight + '\n' +
+    'Canvas size set. Drawing frames\u2026'
+  );
+
+  // Hide debug after 2s once everything's working
+  setTimeout(() => {
+    if (captureMode) updateDebug('');
+  }, 2000);
+
+  // Render loop with rAF
+  let running = true;
+  captureRenderStop = () => { running = false; };
+  let drawCount = 0;
+  function loop() {
+    if (!running) return;
+    if (captureVideo && captureVideo.readyState >= 2) {
+      try {
+        captureCtx.drawImage(captureVideo, 0, 0, captureCanvas.width, captureCanvas.height);
+        drawCount++;
+        if (drawCount === 1) firstFrameSeen = true;
+      } catch (err) { /* ignore mid-stream draw errors */ }
+    }
+    requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+let captureRenderStop = null;
+
+function readyStateName(rs) {
+  return ['HAVE_NOTHING','HAVE_METADATA','HAVE_CURRENT_DATA','HAVE_FUTURE_DATA','HAVE_ENOUGH_DATA'][rs] || 'unknown';
+}
+
+function updateDebug(msg) {
+  const el = document.getElementById('captureDebug');
+  if (!el) return;
+  if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+  el.style.display = 'block';
+  el.textContent = msg;
+}
+
+function showCaptureLoader(msg) {
+  captureRect.style.display = 'none';
+  captureCanvas.width = 800;
+  captureCanvas.height = 200;
+  captureCtx.fillStyle = '#0d0d0c';
+  captureCtx.fillRect(0, 0, 800, 200);
+  captureCtx.fillStyle = '#d4a017';
+  captureCtx.font = '500 18px JetBrains Mono, monospace';
+  captureCtx.textAlign = 'center';
+  captureCtx.textBaseline = 'middle';
+  captureCtx.fillText(msg, 400, 100);
+}
+
+function hideCaptureLoader() {}
+
+function stopCapture() {
+  if (captureRenderStop) { captureRenderStop(); captureRenderStop = null; }
+  if (captureStream) {
+    for (const t of captureStream.getTracks()) t.stop();
+    captureStream = null;
+  }
+  if (captureVideo) {
+    captureVideo.srcObject = null;
+    if (captureVideo.parentNode) captureVideo.parentNode.removeChild(captureVideo);
+    captureVideo = null;
+  }
+  captureOverlay.classList.remove('visible');
+  captureRect.style.display = 'none';
+  captureDragStart = null;
+  captureMode = null;
+  updateDebug('');
+  document.getElementById('captureBtnSingle').classList.remove('active');
+  document.getElementById('captureBtnOcto').classList.remove('active');
+}
+
+function updateCaptureStatus() {
+  if (captureMode === 'octopus') {
+    const filled = Object.keys(octoSlots).length;
+    captureStatus.textContent = filled + '/8 slots \u00b7 ' + captureSessionCount + ' captured';
+  } else {
+    captureStatus.textContent = imagesSingle.length + '/4 images \u00b7 ' + captureSessionCount + ' captured';
+  }
+}
+
+function eventToCanvasCoords(ev) {
+  const rect = captureCanvas.getBoundingClientRect();
+  const scaleX = captureCanvas.width / rect.width;
+  const scaleY = captureCanvas.height / rect.height;
+  return {
+    x: (ev.clientX - rect.left) * scaleX,
+    y: (ev.clientY - rect.top) * scaleY,
+    displayX: ev.clientX - rect.left,
+    displayY: ev.clientY - rect.top,
+    rect: rect
+  };
+}
+
+captureCanvas.addEventListener('mousedown', ev => {
+  if (ev.button !== 0) return;
+  ev.preventDefault();
+  const c = eventToCanvasCoords(ev);
+  captureDragStart = c;
+  const wrapRect = captureCanvasWrap.getBoundingClientRect();
+  captureRect.style.display = 'block';
+  captureRect.style.left = (c.rect.left - wrapRect.left + c.displayX) + 'px';
+  captureRect.style.top = (c.rect.top - wrapRect.top + c.displayY) + 'px';
+  captureRect.style.width = '0px';
+  captureRect.style.height = '0px';
+});
+
+captureCanvas.addEventListener('mousemove', ev => {
+  if (!captureDragStart) return;
+  const c = eventToCanvasCoords(ev);
+  const wrapRect = captureCanvasWrap.getBoundingClientRect();
+  const startDisplayX = (captureDragStart.x / captureCanvas.width) * c.rect.width;
+  const startDisplayY = (captureDragStart.y / captureCanvas.height) * c.rect.height;
+  const x = Math.min(startDisplayX, c.displayX);
+  const y = Math.min(startDisplayY, c.displayY);
+  const w = Math.abs(c.displayX - startDisplayX);
+  const h = Math.abs(c.displayY - startDisplayY);
+  captureRect.style.left = (c.rect.left - wrapRect.left + x) + 'px';
+  captureRect.style.top = (c.rect.top - wrapRect.top + y) + 'px';
+  captureRect.style.width = w + 'px';
+  captureRect.style.height = h + 'px';
+});
+
+captureCanvas.addEventListener('mouseup', ev => {
+  if (!captureDragStart) return;
+  const c = eventToCanvasCoords(ev);
+  const x = Math.min(captureDragStart.x, c.x);
+  const y = Math.min(captureDragStart.y, c.y);
+  const w = Math.abs(c.x - captureDragStart.x);
+  const h = Math.abs(c.y - captureDragStart.y);
+  captureDragStart = null;
+  captureRect.style.display = 'none';
+  if (w < 30 || h < 30) return; // too small
+
+  const cropCanvas = document.createElement('canvas');
+  cropCanvas.width = Math.round(w);
+  cropCanvas.height = Math.round(h);
+  const cropCtx = cropCanvas.getContext('2d');
+  cropCtx.drawImage(captureCanvas, x, y, w, h, 0, 0, w, h);
+  const dataUrl = cropCanvas.toDataURL('image/png');
+  routeCapturedImage(dataUrl);
+});
+
+function routeCapturedImage(dataUrl) {
+  const base64 = dataUrl.split(',')[1];
+  captureSessionCount++;
+
+  if (captureMode === 'octopus') {
+    const targetSym = captureTarget.value;
+    octoSlots[targetSym] = {
+      name: 'capture-' + targetSym + '.png',
+      mime: 'image/png',
+      base64: base64,
+      dataUrl: dataUrl
+    };
+    renderOctopus();
+    updateOctoCount();
+    addRecentThumb(dataUrl, targetSym);
+    buildCaptureTargetOptions();
+  } else if (captureMode === 'single') {
+    if (imagesSingle.length >= 4) {
+      alert('Single-chart mode supports max 4 images. Discard one to add more.');
+      return;
+    }
+    imagesSingle.push({
+      id: nextIdSingle++,
+      name: 'capture-' + captureSessionCount + '.png',
+      mime: 'image/png',
+      base64: base64,
+      dataUrl: dataUrl
+    });
+    renderThumbsSingle();
+    addRecentThumb(dataUrl, '#' + captureSessionCount);
+  }
+  updateCaptureStatus();
+}
+
+function addRecentThumb(dataUrl, tag) {
+  const div = document.createElement('div');
+  div.className = 'recent-thumb';
+  div.innerHTML = '<img src="' + dataUrl + '" alt="" /><div class="recent-tag">' + escapeHtml(tag) + '</div>';
+  captureRecent.appendChild(div);
+  captureRecent.scrollLeft = captureRecent.scrollWidth;
+}
+
+captureDoneBtn.addEventListener('click', stopCapture);
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && captureOverlay.classList.contains('visible')) stopCapture();
+});
+
+document.getElementById('captureBtnSingle').addEventListener('click', () => startCapture('single'));
+document.getElementById('captureBtnOcto').addEventListener('click', () => startCapture('octopus'));
+
+// Init
+updateJournalBadge();
+updateAttachStatus();
+</script>
+</body>
+</html>
